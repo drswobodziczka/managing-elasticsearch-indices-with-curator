@@ -1,0 +1,1 @@
+## Elasticsearch indices management playground with python Curator API
