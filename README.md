@@ -1,1 +1,1 @@
-# managing-elasticsearch-indices-with-curator
+## Elasticsearch indices management playground with python Curator API
