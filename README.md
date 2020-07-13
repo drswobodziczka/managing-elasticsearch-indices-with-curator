@@ -1,0 +1,1 @@
+# managing-elasticsearch-indices-with-curator
