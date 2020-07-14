@@ -1,5 +1,3 @@
-from logging import INFO, DEBUG
-
 import boto3
 import curator
 import logging
@@ -21,14 +19,18 @@ es = Elasticsearch(
   connection_class=RequestsHttpConnection
 )
 
-logging.basicConfig(filename='delete_indices.log', filemode='w', level=INFO)
+logging.basicConfig(filename='delete_indices.log', filemode='w', level=logging.INFO)
 
-def delete_indices(suffix, dry_run=True):
+def delete_indices(regex, dry_run=True):
   index_list = curator.IndexList(es)
-  index_list.filter_by_regex(kind="regex", value=suffix)
+  index_list.filter_by_regex(kind="regex", value=regex)
+  delete_index_list(index_list=index_list, dry_run=dry_run)
+
+def delete_index_list(index_list, dry_run=True):
   if dry_run:
     curator.DeleteIndices(index_list).do_dry_run()
   else:
     curator.DeleteIndices(index_list).do_action()
 
-delete_indices("_0000")
+
+delete_indices(regex="_0000", dry_run=False)
