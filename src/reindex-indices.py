@@ -3,7 +3,7 @@ from requests_aws4auth import AWS4Auth
 from elasticsearch import Elasticsearch, RequestsHttpConnection
 import curator
 
-host = ''
+host = 'vpc-ew1-psb-ci-elasticsearch-zc6rkopuyypw3eou2carvu47c4.eu-west-1.es.amazonaws.com'
 region = 'eu-west-1'
 service = 'es'
 credentials = boto3.Session(profile_name='saml').get_credentials()
