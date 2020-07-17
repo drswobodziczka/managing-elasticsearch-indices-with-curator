@@ -1,46 +1,49 @@
-import boto3
-from requests_aws4auth import AWS4Auth
-from elasticsearch import Elasticsearch, RequestsHttpConnection
+import logging
+
 import curator
+from curator import IndexList
 
-host = ''
-region = 'eu-west-1'
-service = 'es'
-credentials = boto3.Session(profile_name='saml').get_credentials()
-awsauth = AWS4Auth(credentials.access_key, credentials.secret_key, region, service, session_token=credentials.token)
+from src.ElasticsearchClient import ElasticsearchClient
 
-# Build the Elasticsearch client.
-es = Elasticsearch(
-  hosts=[{'host': host, 'port': 443}],
-  http_auth=awsauth,
-  use_ssl=True,
-  verify_certs=True,
-  connection_class=RequestsHttpConnection
-)
+logging.basicConfig(filename='delete_indices.log',
+                    filemode='w',
+                    level=logging.INFO)
+logger = logging.getLogger('Reindexer')
+new_index_version = '000001'
 
-new_index_version= '000001'
 
-# Lambda execution starts here.
-def list_indices(unit='days', unit_count=100):
-  # list indices
-  index_list = curator.IndexList(es)
-  # Filters by naming prefix.
-  index_list.filter_by_regex(kind='prefix', value='security-events-alerts')
-  # Filters by age, anything with a time stamp older than 30 days in the index name.
-  index_list.filter_by_age(source='name', direction='older', timestring='%Y-%m-%d', unit=unit, unit_count=unit_count)
-  return index_list
+class Reindexer:
 
-def reindex(index_list, version_suffix):
-  old_indices = index_list.indices
+  def __init__(self) -> None:
+    self.__es = ElasticsearchClient.connect()
 
-  print(f"{len(old_indices)} indices going to be reindexed: {old_indices}")
-  for old_index in old_indices:
-    new_index = f"{old_index}_{version_suffix}"
-    # create -- when this may fail? -- a) index already exist b) connection error c) authentication error d) ...
-    print(f"creating new index: {new_index}")
-    # TODO: dry run mode -> real action
-    curator.CreateIndex(es, f"{old_index}_{version_suffix}").do_dry_run()
-    # reindex
+  def reindex(self, version_suffix: str, dry_run: bool = True):
+    index_list = self.__list_indices(unit='days', unit_count=1)
+    old_indices = index_list.indices
+    print(f"{len(old_indices)} indices going to be reindexed..")
+
+    for old_index in old_indices:
+      new_index = f"{old_index}_{version_suffix}"
+      self.__create_index(dry_run, new_index)
+      self.reindex_single(index_list, new_index, old_index, dry_run)
+
+  def __list_indices(self, unit: str, unit_count: int) -> IndexList:
+    index_list = IndexList(self.__es)
+    index_list.filter_by_regex(kind='prefix', value='security-events-alerts')
+    index_list.filter_by_age(source='name', direction='older', timestring='%Y-%m-%d', unit=unit, unit_count=unit_count)
+    return index_list
+
+  def __create_index(self, dry_run: bool, new_index: str) -> None:
+    # TODO: when this may fail? -- a) index already exist b) connection error c) authentication error d) ...
+    if dry_run:
+      print(f"creating new index: {new_index}, DRY-RUN mode")
+      curator.CreateIndex(self.__es, new_index).do_dry_run()
+    else:
+      print(f"creating new index: {new_index}")
+      curator.CreateIndex(self.__es, new_index).do_action()
+
+  def reindex_single(self, index_list: IndexList, new_index: str, old_index: str, dry_run: bool) -> None:
+    # TODO: when this may fail? -- a) dest index already exist b) source index does not exist c) connection error d) authentication error e) ...
     request_body = {
       "source": {
         "index": old_index
@@ -49,24 +52,10 @@ def reindex(index_list, version_suffix):
         "index": new_index
       }
     }
-
-    # -- when this may fail? -- a) dest index already exist b) source index does not exist c) connection error d) authentication error e) ...
-    print(f"sending reindex request: {request_body}")
-    # TODO: dry run mode -> real action
-    curator.Reindex(index_list, request_body, refresh=True, wait_for_completion=True).do_dry_run()
-
-def assert_reindex_successfull(index_list, version_suffix):
-  # TODO named touples here
-  pass
-
-
-# main
-indices = list_indices()
-reindex(index_list=indices, version_suffix=new_index_version)
-assert_reindex_successfull(index_list=indices, version_suffix=new_index_version)
-
-################ ! handle:
-
-# ConnectionError(HTTPSConnectionPool
-# Caused by NewConnectionError('<urllib3.connection.VerifiedHTTPSConnection object at 0x000001DB87C57F28>: Failed to establish a new connection
-# FailedExecution
+    logger.info(msg=f"sending reindex request: {request_body}")
+    if dry_run:
+      logger.info(msg=f"reindexing index: {old_index} to {new_index}, mode: DRY-RUN")
+      curator.Reindex(index_list, request_body, refresh=True, wait_for_completion=True).do_dry_run()
+    else:
+      logger.info(msg=f"reindexing index: {old_index} to {new_index}")
+      curator.Reindex(index_list, request_body, refresh=True, wait_for_completion=True).do_action()
