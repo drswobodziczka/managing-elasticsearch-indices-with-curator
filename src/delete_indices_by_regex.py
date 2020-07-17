@@ -1,32 +1,17 @@
 import logging
-import boto3
 import curator
-from elasticsearch import Elasticsearch, RequestsHttpConnection
-from requests_aws4auth import AWS4Auth
+from src.ElasticsearchClient import ElasticsearchClient
 
-logging.basicConfig(filename='delete_indices.log', filemode='w', level=logging.INFO)
+logging.basicConfig(filename='delete_indices.log',
+                    filemode='w',
+                    level=logging.INFO)
 logger = logging.getLogger('IndexRemover')
 
+
 class IndexRemover:
-  host = ''
-  region = 'eu-west-1'
-  service = 'es'
-
   def __init__(self):
-    credentials = boto3.Session(profile_name='saml').get_credentials()
-    awsauth = AWS4Auth(credentials.access_key, credentials.secret_key,
-                       IndexRemover.region, IndexRemover.service, session_token=credentials.token)
-
-    # Build the Elasticsearch client.
-    self.__es = Elasticsearch(
-        hosts=[{'host': IndexRemover.host, 'port': 443}],
-        http_auth=awsauth,
-        use_ssl=True,
-        verify_certs=True,
-        connection_class=RequestsHttpConnection
-    )
-
-    logger.info(msg=f"established connection to Elastisearch instance: {self.__es}")
+    self.__es = ElasticsearchClient.connect()
+    logger.info(msg=f"elasticsearch client initialized: {self.__es}")
 
   def delete_indices(self, regex, dry_run=True):
     """
