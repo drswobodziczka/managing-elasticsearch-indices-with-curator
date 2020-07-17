@@ -27,7 +27,7 @@ class Reindexer:
 
   def __list_indices(self, unit: str, unit_count: int) -> IndexList:
     index_list = IndexList(self.__es)
-    index_list.filter_by_regex(kind='prefix', value='security-events-alerts')
+    index_list.filter_by_regex(kind='prefix', value='index-prefix')
     index_list.filter_by_age(source='name', direction='older', timestring='%Y-%m-%d', unit=unit, unit_count=unit_count)
     return index_list
 
