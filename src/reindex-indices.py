@@ -1,7 +1,6 @@
 import logging
 
-import curator
-from curator import IndexList
+from curator import IndexList, CreateIndex, Reindex
 
 from src.ElasticsearchClient import ElasticsearchClient
 
@@ -9,7 +8,6 @@ logging.basicConfig(filename='delete_indices.log',
                     filemode='w',
                     level=logging.INFO)
 logger = logging.getLogger('Reindexer')
-new_index_version = '000001'
 
 
 class Reindexer:
@@ -37,10 +35,10 @@ class Reindexer:
     # TODO: when this may fail? -- a) index already exist b) connection error c) authentication error d) ...
     if dry_run:
       print(f"creating new index: {new_index}, DRY-RUN mode")
-      curator.CreateIndex(self.__es, new_index).do_dry_run()
+      CreateIndex(self.__es, new_index).do_dry_run()
     else:
       print(f"creating new index: {new_index}")
-      curator.CreateIndex(self.__es, new_index).do_action()
+      CreateIndex(self.__es, new_index).do_action()
 
   def reindex_single(self, index_list: IndexList, new_index: str, old_index: str, dry_run: bool) -> None:
     # TODO: when this may fail? -- a) dest index already exist b) source index does not exist c) connection error d) authentication error e) ...
@@ -55,7 +53,7 @@ class Reindexer:
     logger.info(msg=f"sending reindex request: {request_body}")
     if dry_run:
       logger.info(msg=f"reindexing index: {old_index} to {new_index}, mode: DRY-RUN")
-      curator.Reindex(index_list, request_body, refresh=True, wait_for_completion=True).do_dry_run()
+      Reindex(index_list, request_body, refresh=True, wait_for_completion=True).do_dry_run()
     else:
       logger.info(msg=f"reindexing index: {old_index} to {new_index}")
-      curator.Reindex(index_list, request_body, refresh=True, wait_for_completion=True).do_action()
+      Reindex(index_list, request_body, refresh=True, wait_for_completion=True).do_action()
